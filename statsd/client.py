@@ -8,6 +8,10 @@ import time
 
 __all__ = ['StatsClient']
 
+# Save the IP address of our monitoring server here in the global namespace.
+# Doing a DNS lookup on a hostname once per request is causes us to run out
+# of file handles at very high # requests/sec.  
+MONITORING_SERVER_ADDR = None
 
 class Timer(object):
     """A context manager/decorator for statsd.timing()."""
@@ -69,11 +73,15 @@ class StatsClient(object):
     def __init__(self, host='localhost', port=8125, prefix=None,
                  maxudpsize=512):
         """Create a new client."""
-        family, _, _, _, addr = socket.getaddrinfo(
-            host, port, 0, socket.SOCK_DGRAM
-        )[0]
-        self._addr = addr
+        global MONITORING_SERVER_ADDR
+        if not MONITORING_SERVER_ADDR:
+            family, _, _, _, addr = socket.getaddrinfo(
+                host, port, 0, socket.SOCK_DGRAM
+            )[0]
+            MONITORING_SERVER_ADDR = addr
+        self._addr = MONITORING_SERVER_ADDR
         self._sock = socket.socket(family, socket.SOCK_DGRAM)
+        self._sock.connect(self._addr)
         self._prefix = prefix
         self._maxudpsize = maxudpsize
 
@@ -133,13 +141,21 @@ class StatsClient(object):
     def _send(self, data):
         """Send data to statsd."""
         try:
-            self._sock.sendto(data.encode('ascii'), self._addr)
+            self._sock.send(data.encode('ascii'))
         except socket.error:
             # No time for love, Dr. Jones!
             pass
 
 
 class Pipeline(StatsClient):
+
+    _instance = None
+
+    def __new__(cls, *args, **kwargs):
+        if cls._instance is None:
+            cls._instance = super(Pipeline, cls).__new__(cls)
+        return cls._instance
+    
     def __init__(self, client):
         self._client = client
         self._prefix = client._prefix

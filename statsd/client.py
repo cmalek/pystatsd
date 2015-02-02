@@ -78,9 +78,9 @@ class StatsClient(object):
             family, _, _, _, addr = socket.getaddrinfo(
                 host, port, 0, socket.SOCK_DGRAM
             )[0]
-            MONITORING_SERVER_ADDR = addr
-        self._addr = MONITORING_SERVER_ADDR
-        self._sock = socket.socket(family, socket.SOCK_DGRAM)
+            MONITORING_SERVER_ADDR = (family, addr)
+        self._addr = MONITORING_SERVER_ADDR[1]
+        self._sock = socket.socket(MONITORING_SERVER_ADDR[0], socket.SOCK_DGRAM)
         self._sock.connect(self._addr)
         self._prefix = prefix
         self._maxudpsize = maxudpsize
